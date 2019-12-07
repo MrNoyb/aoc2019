@@ -2,7 +2,6 @@ use day07::icm::Processor;
 use itertools::Itertools;
 use std::fs::File;
 use std::io::prelude::Read;
-use std::io::Write;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -126,33 +125,9 @@ fn main() {
 
     println!("\n--- Part 2: ---\n");
 
-    // create io channels
-    let (send_a, recv_a) = channel();
-    let (send_b, recv_b) = channel();
-    let (send_c, recv_c) = channel();
-    let (send_d, recv_d) = channel();
-    let (send_e, recv_e) = channel();
-
     {
-        // redo the io wiring between processors
-        let mut proc_a = procs[0].lock().unwrap();
-        proc_a.set_input(recv_a);
-        proc_a.set_output(send_b.clone());
-
-        let mut proc_b = procs[1].lock().unwrap();
-        proc_b.set_input(recv_b);
-        proc_b.set_output(send_c.clone());
-
-        let mut proc_c = procs[2].lock().unwrap();
-        proc_c.set_input(recv_c);
-        proc_c.set_output(send_d.clone());
-
-        let mut proc_d = procs[3].lock().unwrap();
-        proc_d.set_input(recv_d);
-        proc_d.set_output(send_e.clone());
-
+        // rewire feedback loop
         let mut proc_e = procs[4].lock().unwrap();
-        proc_e.set_input(recv_e);
         proc_e.set_output(send_a.clone());
     }
 
@@ -161,8 +136,6 @@ fn main() {
 
     let perms = (5..10).permutations(5);
     for p in perms {
-        std::io::stdout().flush();
-
         // send phrase setting sequence
         send_a.send(p[0]).expect("Send error.");
         send_b.send(p[1]).expect("Send error.");
