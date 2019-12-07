@@ -1,6 +1,6 @@
 pub mod icm {
     use std::convert::TryInto;
-    use std::io::{self, BufRead, Write};
+    use std::sync::mpsc::{Receiver, Sender};
 
     #[derive(Debug)]
     enum Param {
@@ -37,24 +37,20 @@ pub mod icm {
         CmpEq(Param, Param, Param),
     }
 
-    pub struct Processor<'a, T: BufRead, U: Write>
-    where
-        T: 'a,
-        U: 'a,
-    {
+    pub struct Processor {
         ip: usize,
         mem: Vec<i32>,
-        input: &'a mut T,
-        output: &'a mut U,
+        input: Receiver<i32>,
+        output: Sender<i32>,
     }
 
-    impl<'a, T: BufRead, U: Write> Processor<'a, T, U> {
+    impl Processor {
         pub fn new(
             ip: usize,
             mem: Vec<i32>,
-            input: &'a mut T,
-            output: &'a mut U,
-        ) -> Processor<'a, T, U> {
+            input: Receiver<i32>,
+            output: Sender<i32>,
+        ) -> Processor {
             Processor {
                 ip,
                 mem,
@@ -71,11 +67,15 @@ pub mod icm {
             self.mem = mem;
         }
 
-        pub fn set_input(&mut self, input: &'a mut T) {
+        pub fn set_input(&mut self, input: Receiver<i32>) {
             self.input = input;
         }
 
-        pub fn set_output(&mut self, output: &'a mut U) {
+        pub fn get_input(&self) -> &Receiver<i32> {
+            return &self.input;
+        }
+
+        pub fn set_output(&mut self, output: Sender<i32>) {
             self.output = output;
         }
 
@@ -124,17 +124,15 @@ pub mod icm {
                         Param::Position(n) => n,
                         _ => panic!("Invalid parameter"),
                     };
-                    let input = self.readnum();
+                    let input = self.input.recv().expect("Processor recv() error");
                     self.mem[p0] = input;
                     self.ip += 2;
                 }
                 Instr::Show(p0) => {
                     let p0 = self.fetch_param(p0);
                     self.output
-                        .write(format!("{}\n", p0).as_bytes())
-                        .expect("Processor output write error.");
-                    self.output.flush().expect("Processor output flush error.");
-                    // println!("{}", p0);
+                        .send(p0)
+                        .expect("Processor output channel send error.");
                     self.ip += 2;
                 }
                 Instr::JmpT(p0, p1) => {
@@ -250,14 +248,12 @@ pub mod icm {
             }
         }
 
-        fn readnum(&mut self) -> i32 {
-            // print!("Enter value: ");
-            io::stdout().flush().expect("Could not flush stdout.");
-            let mut input = String::new();
-            match self.input.read_line(&mut input) {
-                Ok(_) => input.trim().parse::<i32>().unwrap(),
-                Err(_) => panic!("Could not read from stdin."),
-            }
-        }
+        // fn readnum(&mut self) -> i32 {
+        //     let mut input = String::new();
+        //     match self.input.read_line(&mut input) {
+        //         Ok(_) => input.trim().parse::<i32>().unwrap(),
+        //         Err(_) => panic!("Could not read from stdin."),
+        //     }
+        // }
     } // END IMPL Processor
 }

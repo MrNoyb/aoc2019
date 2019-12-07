@@ -2,7 +2,8 @@ use day07::icm::Processor;
 use itertools::Itertools;
 use std::fs::File;
 use std::io::prelude::Read;
-use std::io::Cursor;
+use std::sync::mpsc::channel;
+use std::thread;
 
 fn parse_input(s: &str) -> Vec<i32> {
     let mut v = vec![];
@@ -39,122 +40,57 @@ fn main() {
 
     let mut signals = vec![];
 
+    let (send_out, recv_out) = channel();
+
     let perms = (0..5).permutations(5);
     for p in perms {
-        // get signal codes
-        let sc1 = format!("{}\n", p[0]);
-        let sc2 = format!("{}\n", p[1]);
-        let sc3 = format!("{}\n", p[2]);
-        let sc4 = format!("{}\n", p[3]);
-        let sc5 = format!("{}\n", p[4]);
+        // create io channels
+        let (send_a, recv_a) = channel();
+        let (send_b, recv_b) = channel();
+        let (send_c, recv_c) = channel();
+        let (send_d, recv_d) = channel();
+        let (send_e, recv_e) = channel();
+        // create processors
+        let mut proc_a = Processor::new(0, memory.clone(), recv_a, send_b.clone());
+        let mut proc_b = Processor::new(0, memory.clone(), recv_b, send_c.clone());
+        let mut proc_c = Processor::new(0, memory.clone(), recv_c, send_d.clone());
+        let mut proc_d = Processor::new(0, memory.clone(), recv_d, send_e.clone());
+        let mut proc_e = Processor::new(0, memory.clone(), recv_e, send_out.clone());
 
-        // create io for processors
-        let mut io_a: (Cursor<Vec<u8>>, Cursor<Vec<u8>>) =
-            (Cursor::new(vec![]), Cursor::new(vec![]));
-        let mut io_b: (Cursor<Vec<u8>>, Cursor<Vec<u8>>) =
-            (Cursor::new(vec![]), Cursor::new(vec![]));
-        let mut io_c: (Cursor<Vec<u8>>, Cursor<Vec<u8>>) =
-            (Cursor::new(vec![]), Cursor::new(vec![]));
-        let mut io_d: (Cursor<Vec<u8>>, Cursor<Vec<u8>>) =
-            (Cursor::new(vec![]), Cursor::new(vec![]));
-        let mut io_e: (Cursor<Vec<u8>>, Cursor<Vec<u8>>) =
-            (Cursor::new(vec![]), Cursor::new(vec![]));
+        // send phrase setting sequence
+        send_a.send(p[0]).expect("Send error.");
+        send_b.send(p[1]).expect("Send error.");
+        send_c.send(p[2]).expect("Send error.");
+        send_d.send(p[3]).expect("Send error.");
+        send_e.send(p[4]).expect("Send error.");
 
-        // prepare io for procA
-        io_a.0.get_mut().clear();
-        io_a.0.get_mut().extend_from_slice(sc1.as_bytes());
-        io_a.0.get_mut().extend_from_slice(&[48, 10]);
-        io_a.1.get_mut().clear();
+        // send input for proc_a
+        send_a.send(0).expect("Send error.");
 
-        let mut proc_a = Processor::new(0, memory.clone(), &mut io_a.0, &mut io_a.1);
+        let t1 = thread::spawn(move || {
+            proc_a.run();
+        });
+        let t2 = thread::spawn(move || {
+            proc_b.run();
+        });
+        let t3 = thread::spawn(move || {
+            proc_c.run();
+        });
+        let t4 = thread::spawn(move || {
+            proc_d.run();
+        });
+        let t5 = thread::spawn(move || {
+            proc_e.run();
+        });
 
-        proc_a.run();
+        t1.join().expect("Thread error.");
+        t2.join().expect("Thread error.");
+        t3.join().expect("Thread error.");
+        t4.join().expect("Thread error.");
+        t5.join().expect("Thread error.");
 
-        // prepare io for procB
-        io_b.0.get_mut().clear();
-        io_b.0.get_mut().extend_from_slice(sc2.as_bytes());
-        io_b.1.get_mut().clear();
-
-        // append output from proc_a
-        let mut tmp = io_a
-            .1
-            .get_ref()
-            .iter()
-            .copied()
-            .take_while(|x| *x != 0)
-            .collect();
-        io_b.0.get_mut().append(&mut tmp);
-
-        let mut proc_b = Processor::new(0, memory.clone(), &mut io_b.0, &mut io_b.1);
-
-        proc_b.run();
-
-        // prepare io for procC
-        io_c.0.get_mut().clear();
-        io_c.0.get_mut().extend_from_slice(sc3.as_bytes());
-        io_c.1.get_mut().clear();
-
-        // append output from proc_b
-        let mut tmp = io_b
-            .1
-            .get_ref()
-            .iter()
-            .copied()
-            .take_while(|x| *x != 0)
-            .collect();
-        io_c.0.get_mut().append(&mut tmp);
-
-        let mut proc_c = Processor::new(0, memory.clone(), &mut io_c.0, &mut io_c.1);
-
-        proc_c.run();
-
-        // prepare io for procD
-        io_d.0.get_mut().clear();
-        io_d.0.get_mut().extend_from_slice(sc4.as_bytes());
-        io_d.1.get_mut().clear();
-
-        // append output from proc_c
-        let mut tmp = io_c
-            .1
-            .get_ref()
-            .iter()
-            .copied()
-            .take_while(|x| *x != 0)
-            .collect();
-        io_d.0.get_mut().append(&mut tmp);
-
-        let mut proc_d = Processor::new(0, memory.clone(), &mut io_d.0, &mut io_d.1);
-
-        proc_d.run();
-
-        // prepare io for procE
-        io_e.0.get_mut().clear();
-        io_e.0.get_mut().extend_from_slice(sc5.as_bytes());
-        io_e.1.get_mut().clear();
-
-        // append output from proc_d
-        let mut tmp = io_d
-            .1
-            .get_ref()
-            .iter()
-            .copied()
-            .take_while(|x| *x != 0)
-            .collect();
-        io_e.0.get_mut().append(&mut tmp);
-
-        let mut proc_e = Processor::new(0, memory.clone(), &mut io_e.0, &mut io_e.1);
-
-        proc_e.run();
-
-        let v = io_e.1.get_ref().to_vec();
-        let err = "ERROR".to_string();
-        let signal_e = String::from_utf8(v).unwrap_or(err);
-        let sig = signal_e
-            .trim_matches('\u{0}')
-            .trim()
-            .parse::<i32>()
-            .expect("Conversion error on signal");
-        signals.push(sig);
+        let res = recv_out.recv().expect("Could not receive output value");
+        signals.push(res);
     }
 
     println!(
@@ -164,125 +100,67 @@ fn main() {
 
     println!("\n--- Part 2: ---\n");
 
-    let mut signals = vec![];
+    signals.clear();
 
     let perms = (5..10).permutations(5);
     for p in perms {
-        // get signal codes
-        let sc1 = format!("{}\n", p[0]);
-        let sc2 = format!("{}\n", p[1]);
-        let sc3 = format!("{}\n", p[2]);
-        let sc4 = format!("{}\n", p[3]);
-        let sc5 = format!("{}\n", p[4]);
+        // create io channels
+        let (send_a, recv_a) = channel();
+        let (send_b, recv_b) = channel();
+        let (send_c, recv_c) = channel();
+        let (send_d, recv_d) = channel();
+        let (send_e, recv_e) = channel();
+        // create processors
+        let mut proc_a = Processor::new(0, memory.clone(), recv_a, send_b.clone());
+        let mut proc_b = Processor::new(0, memory.clone(), recv_b, send_c.clone());
+        let mut proc_c = Processor::new(0, memory.clone(), recv_c, send_d.clone());
+        let mut proc_d = Processor::new(0, memory.clone(), recv_d, send_e.clone());
+        let mut proc_e = Processor::new(0, memory.clone(), recv_e, send_a.clone());
 
-        // create io for processors
-        let mut io_a: (Cursor<Vec<u8>>, Cursor<Vec<u8>>) =
-            (Cursor::new(vec![]), Cursor::new(vec![]));
-        let mut io_b: (Cursor<Vec<u8>>, Cursor<Vec<u8>>) =
-            (Cursor::new(vec![]), Cursor::new(vec![]));
-        let mut io_c: (Cursor<Vec<u8>>, Cursor<Vec<u8>>) =
-            (Cursor::new(vec![]), Cursor::new(vec![]));
-        let mut io_d: (Cursor<Vec<u8>>, Cursor<Vec<u8>>) =
-            (Cursor::new(vec![]), Cursor::new(vec![]));
-        let mut io_e: (Cursor<Vec<u8>>, Cursor<Vec<u8>>) =
-            (Cursor::new(vec![]), Cursor::new(vec![]));
+        // send phrase setting sequence
+        send_a.send(p[0]).expect("Send error.");
+        send_b.send(p[1]).expect("Send error.");
+        send_c.send(p[2]).expect("Send error.");
+        send_d.send(p[3]).expect("Send error.");
+        send_e.send(p[4]).expect("Send error.");
 
-        // prepare io for procA
-        io_a.0.get_mut().clear();
-        io_a.0.get_mut().extend_from_slice(sc1.as_bytes());
-        io_a.0.get_mut().extend_from_slice(&[48, 10]);
-        io_a.1.get_mut().clear();
+        // send input for proc_a
+        send_a.send(0).expect("Send error.");
 
-        let mut proc_a = Processor::new(0, memory.clone(), &mut io_a.0, &mut io_a.1);
+        // let t1 = thread::spawn(move || {
+        //     proc_a.run();
+        // });
+        let t2 = thread::spawn(move || {
+            proc_b.run();
+        });
+        let t3 = thread::spawn(move || {
+            proc_c.run();
+        });
+        let t4 = thread::spawn(move || {
+            proc_d.run();
+        });
+        let t5 = thread::spawn(move || {
+            proc_e.run();
+        });
 
         proc_a.run();
+        // t1.join().expect("Thread error.");
+        t2.join().expect("Thread error.");
+        t3.join().expect("Thread error.");
+        t4.join().expect("Thread error.");
+        t5.join().expect("Thread error.");
 
-        // prepare io for procB
-        io_b.0.get_mut().clear();
-        io_b.0.get_mut().extend_from_slice(sc2.as_bytes());
-        io_b.1.get_mut().clear();
-
-        // append output from proc_a
-        let mut tmp = io_a
-            .1
-            .get_ref()
-            .iter()
-            .copied()
-            .take_while(|x| *x != 0)
-            .collect();
-        io_b.0.get_mut().append(&mut tmp);
-
-        let mut proc_b = Processor::new(0, memory.clone(), &mut io_b.0, &mut io_b.1);
-
-        proc_b.run();
-
-        // prepare io for procC
-        io_c.0.get_mut().clear();
-        io_c.0.get_mut().extend_from_slice(sc3.as_bytes());
-        io_c.1.get_mut().clear();
-
-        // append output from proc_b
-        let mut tmp = io_b
-            .1
-            .get_ref()
-            .iter()
-            .copied()
-            .take_while(|x| *x != 0)
-            .collect();
-        io_c.0.get_mut().append(&mut tmp);
-
-        let mut proc_c = Processor::new(0, memory.clone(), &mut io_c.0, &mut io_c.1);
-
-        proc_c.run();
-
-        // prepare io for procD
-        io_d.0.get_mut().clear();
-        io_d.0.get_mut().extend_from_slice(sc4.as_bytes());
-        io_d.1.get_mut().clear();
-
-        // append output from proc_c
-        let mut tmp = io_c
-            .1
-            .get_ref()
-            .iter()
-            .copied()
-            .take_while(|x| *x != 0)
-            .collect();
-        io_d.0.get_mut().append(&mut tmp);
-
-        let mut proc_d = Processor::new(0, memory.clone(), &mut io_d.0, &mut io_d.1);
-
-        proc_d.run();
-
-        // prepare io for procE
-        io_e.0.get_mut().clear();
-        io_e.0.get_mut().extend_from_slice(sc5.as_bytes());
-        io_e.1.get_mut().clear();
-
-        // append output from proc_d
-        let mut tmp = io_d
-            .1
-            .get_ref()
-            .iter()
-            .copied()
-            .take_while(|x| *x != 0)
-            .collect();
-        io_e.0.get_mut().append(&mut tmp);
-
-        let mut proc_e = Processor::new(0, memory.clone(), &mut io_e.0, &mut io_e.1);
-
-        proc_e.run();
-
-        let v = io_e.1.get_ref().to_vec();
-        let err = "ERROR".to_string();
-        let signal_e = String::from_utf8(v).unwrap_or(err);
-        let sig = signal_e
-            .trim_matches('\u{0}')
-            .trim()
-            .parse::<i32>()
-            .expect("Conversion error on signal");
-        signals.push(sig);
+        let res = proc_a
+            .get_input()
+            .recv()
+            .expect("Could not receive output value");
+        signals.push(res);
     }
+
+    println!(
+        "Max Thruster Signal: {}",
+        signals.iter().max().unwrap_or(&-1)
+    );
 }
 
 #[test]
