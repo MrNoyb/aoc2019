@@ -229,7 +229,7 @@ fn run_computer(ip: usize, mem: Vec<i32>) -> Vec<i32> {
 }
 
 fn main() {
-    println!("--- Day 4: Secure Container ---\n");
+    println!("--- Day 5: Sunny with a Chance of Asteroids ---\n");
 
     println!("Reading input...");
 

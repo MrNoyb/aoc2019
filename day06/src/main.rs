@@ -45,7 +45,7 @@ fn parse_input(s: &str) -> HashMap<String, Option<String>> {
 }
 
 fn main() {
-    println!("--- Day 4: Secure Container ---\n");
+    println!("--- Day 6: Universal Orbit Map ---\n");
 
     println!("Reading input...");
 
