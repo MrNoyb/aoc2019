@@ -184,11 +184,3 @@ fn main() {
         signals.iter().max().unwrap_or(&-1)
     );
 }
-
-#[test]
-fn test() {
-    let s1 = "12428642\n\u{0}\u{0}\u{0}\u{0}".to_string();
-    let s2 = "12428642\n".to_string();
-
-    assert_eq!(s1.trim_matches('\u{0}'), s2)
-}
