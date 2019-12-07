@@ -2,7 +2,9 @@ use day07::icm::Processor;
 use itertools::Itertools;
 use std::fs::File;
 use std::io::prelude::Read;
+use std::io::Write;
 use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 fn parse_input(s: &str) -> Vec<i32> {
@@ -29,35 +31,58 @@ fn main() {
             .expect("Could not read from input file.");
     }
 
-    // let input = "3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0";
-    // let input = "3,23,3,24,1002,24,10,24,1002,23,-1,23,101,5,23,23,1,24,23,23,4,23,99,0,0";
-    // let input = "3,31,3,32,1002,32,10,32,1001,31,-2,31,1007,31,0,33,1002,33,7,33,1,33,31,31,1,32,31,31,4,31,99,0,0,0";
-
     println!("Parsing input...");
     let memory = parse_input(&input);
 
     println!("\n--- Part 1: ---\n");
 
-    let mut signals = vec![];
-
+    // create io channels
+    let (send_a, recv_a) = channel();
+    let (send_b, recv_b) = channel();
+    let (send_c, recv_c) = channel();
+    let (send_d, recv_d) = channel();
+    let (send_e, recv_e) = channel();
     let (send_out, recv_out) = channel();
+
+    // create processors
+    let proc_a = Arc::new(Mutex::new(Processor::new(
+        0,
+        memory.clone(),
+        recv_a,
+        send_b.clone(),
+    )));
+    let proc_b = Arc::new(Mutex::new(Processor::new(
+        0,
+        memory.clone(),
+        recv_b,
+        send_c.clone(),
+    )));
+    let proc_c = Arc::new(Mutex::new(Processor::new(
+        0,
+        memory.clone(),
+        recv_c,
+        send_d.clone(),
+    )));
+    let proc_d = Arc::new(Mutex::new(Processor::new(
+        0,
+        memory.clone(),
+        recv_d,
+        send_e.clone(),
+    )));
+    let proc_e = Arc::new(Mutex::new(Processor::new(
+        0,
+        memory.clone(),
+        recv_e,
+        send_out.clone(),
+    )));
+
+    let procs = vec![proc_a, proc_b, proc_c, proc_d, proc_e];
+
+    let mut signals = vec![];
 
     let perms = (0..5).permutations(5);
     for p in perms {
-        // create io channels
-        let (send_a, recv_a) = channel();
-        let (send_b, recv_b) = channel();
-        let (send_c, recv_c) = channel();
-        let (send_d, recv_d) = channel();
-        let (send_e, recv_e) = channel();
-        // create processors
-        let mut proc_a = Processor::new(0, memory.clone(), recv_a, send_b.clone());
-        let mut proc_b = Processor::new(0, memory.clone(), recv_b, send_c.clone());
-        let mut proc_c = Processor::new(0, memory.clone(), recv_c, send_d.clone());
-        let mut proc_d = Processor::new(0, memory.clone(), recv_d, send_e.clone());
-        let mut proc_e = Processor::new(0, memory.clone(), recv_e, send_out.clone());
-
-        // send phrase setting sequence
+        // send phase setting sequence
         send_a.send(p[0]).expect("Send error.");
         send_b.send(p[1]).expect("Send error.");
         send_c.send(p[2]).expect("Send error.");
@@ -67,30 +92,31 @@ fn main() {
         // send input for proc_a
         send_a.send(0).expect("Send error.");
 
-        let t1 = thread::spawn(move || {
-            proc_a.run();
-        });
-        let t2 = thread::spawn(move || {
-            proc_b.run();
-        });
-        let t3 = thread::spawn(move || {
-            proc_c.run();
-        });
-        let t4 = thread::spawn(move || {
-            proc_d.run();
-        });
-        let t5 = thread::spawn(move || {
-            proc_e.run();
-        });
+        // start processors
+        let mut vthr = vec![];
+        for pu in &procs {
+            let pr = Arc::clone(&pu);
+            let thr = thread::spawn(move || {
+                let mut proc = pr.lock().unwrap();
+                proc.run();
+            });
+            vthr.push(thr);
+        }
 
-        t1.join().expect("Thread error.");
-        t2.join().expect("Thread error.");
-        t3.join().expect("Thread error.");
-        t4.join().expect("Thread error.");
-        t5.join().expect("Thread error.");
+        // wait for processors to finish
+        for thr in vthr {
+            thr.join().expect("Thread error");
+        }
 
         let res = recv_out.recv().expect("Could not receive output value");
         signals.push(res);
+
+        // reset processors
+        for pu in &procs {
+            let mut proc = pu.lock().unwrap();
+            proc.set_ip(0);
+            proc.set_memory(memory.clone());
+        }
     }
 
     println!(
@@ -100,22 +126,42 @@ fn main() {
 
     println!("\n--- Part 2: ---\n");
 
+    // create io channels
+    let (send_a, recv_a) = channel();
+    let (send_b, recv_b) = channel();
+    let (send_c, recv_c) = channel();
+    let (send_d, recv_d) = channel();
+    let (send_e, recv_e) = channel();
+
+    {
+        // redo the io wiring between processors
+        let mut proc_a = procs[0].lock().unwrap();
+        proc_a.set_input(recv_a);
+        proc_a.set_output(send_b.clone());
+
+        let mut proc_b = procs[1].lock().unwrap();
+        proc_b.set_input(recv_b);
+        proc_b.set_output(send_c.clone());
+
+        let mut proc_c = procs[2].lock().unwrap();
+        proc_c.set_input(recv_c);
+        proc_c.set_output(send_d.clone());
+
+        let mut proc_d = procs[3].lock().unwrap();
+        proc_d.set_input(recv_d);
+        proc_d.set_output(send_e.clone());
+
+        let mut proc_e = procs[4].lock().unwrap();
+        proc_e.set_input(recv_e);
+        proc_e.set_output(send_a.clone());
+    }
+
+    // clear result vector
     signals.clear();
 
     let perms = (5..10).permutations(5);
     for p in perms {
-        // create io channels
-        let (send_a, recv_a) = channel();
-        let (send_b, recv_b) = channel();
-        let (send_c, recv_c) = channel();
-        let (send_d, recv_d) = channel();
-        let (send_e, recv_e) = channel();
-        // create processors
-        let mut proc_a = Processor::new(0, memory.clone(), recv_a, send_b.clone());
-        let mut proc_b = Processor::new(0, memory.clone(), recv_b, send_c.clone());
-        let mut proc_c = Processor::new(0, memory.clone(), recv_c, send_d.clone());
-        let mut proc_d = Processor::new(0, memory.clone(), recv_d, send_e.clone());
-        let mut proc_e = Processor::new(0, memory.clone(), recv_e, send_a.clone());
+        std::io::stdout().flush();
 
         // send phrase setting sequence
         send_a.send(p[0]).expect("Send error.");
@@ -127,34 +173,37 @@ fn main() {
         // send input for proc_a
         send_a.send(0).expect("Send error.");
 
-        // let t1 = thread::spawn(move || {
-        //     proc_a.run();
-        // });
-        let t2 = thread::spawn(move || {
-            proc_b.run();
-        });
-        let t3 = thread::spawn(move || {
-            proc_c.run();
-        });
-        let t4 = thread::spawn(move || {
-            proc_d.run();
-        });
-        let t5 = thread::spawn(move || {
-            proc_e.run();
-        });
+        // start processors
+        let mut vthr = vec![];
+        for pu in &procs {
+            let pr = Arc::clone(&pu);
+            let thr = thread::spawn(move || {
+                let mut proc = pr.lock().unwrap();
+                proc.run();
+            });
+            vthr.push(thr);
+        }
 
-        proc_a.run();
-        // t1.join().expect("Thread error.");
-        t2.join().expect("Thread error.");
-        t3.join().expect("Thread error.");
-        t4.join().expect("Thread error.");
-        t5.join().expect("Thread error.");
+        // wait for processors to finish
+        for thr in vthr {
+            thr.join().expect("Thread error");
+        }
 
-        let res = proc_a
-            .get_input()
-            .recv()
-            .expect("Could not receive output value");
-        signals.push(res);
+        {
+            let proc_a = procs[0].lock().unwrap();
+            let res = proc_a
+                .get_input()
+                .recv()
+                .expect("Could not receive output value");
+            signals.push(res);
+        }
+
+        // reset processors
+        for pu in &procs {
+            let mut proc = pu.lock().unwrap();
+            proc.set_ip(0);
+            proc.set_memory(memory.clone());
+        }
     }
 
     println!(

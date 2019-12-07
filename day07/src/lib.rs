@@ -247,13 +247,5 @@ pub mod icm {
                 Param::Immediate(n) => n,
             }
         }
-
-        // fn readnum(&mut self) -> i32 {
-        //     let mut input = String::new();
-        //     match self.input.read_line(&mut input) {
-        //         Ok(_) => input.trim().parse::<i32>().unwrap(),
-        //         Err(_) => panic!("Could not read from stdin."),
-        //     }
-        // }
     } // END IMPL Processor
 }
