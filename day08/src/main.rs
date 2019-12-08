@@ -20,11 +20,11 @@ fn layers2pixels(layers: &[Layer]) -> [u8; (WIDTH * HEIGHT) as usize] {
             }
             match val {
                 0 => {
-                    v[i] = 255;
+                    v[i] = 0;
                     done += 1;
                 }
                 1 => {
-                    v[i] = 0;
+                    v[i] = 255;
                     done += 1;
                 }
                 _ => continue,
@@ -38,17 +38,31 @@ fn layers2pixels(layers: &[Layer]) -> [u8; (WIDTH * HEIGHT) as usize] {
     return v;
 }
 
+fn pixel2utf8(pixels: &[u8]) -> String {
+    let mut s = String::new();
+
+    for (i, p) in pixels.iter().enumerate() {
+        if *p == 0 {
+            s.push(' ');
+        } else {
+            s.push('\u{2588}');
+        }
+        if (i + 1) % WIDTH as usize == 0 {
+            s.push('\n');
+        }
+    }
+    return s;
+}
+
 fn parse_input(s: &str) -> Vec<Layer> {
     let mut v = vec![];
 
     let mut cur_layer = vec![];
-    let mut i = 0;
 
-    for c in s.trim().chars() {
+    for (i, c) in s.trim().chars().enumerate() {
         let n = c.to_digit(10).unwrap() as u8;
         cur_layer.push(n);
-        i += 1;
-        if i % (WIDTH * HEIGHT) == 0 {
+        if (i + 1) % (WIDTH * HEIGHT) as usize == 0 {
             v.push(cur_layer);
             cur_layer = Vec::new();
         }
@@ -102,4 +116,5 @@ fn main() {
         .expect("Could not write image.");
 
     println!("Image written to {}", path.display());
+    println!("\nText image representation:\n\n{}", pixel2utf8(&pixels));
 }
