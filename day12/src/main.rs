@@ -1,3 +1,4 @@
+use num::Integer;
 use regex::Regex;
 use std::collections::HashSet;
 
@@ -25,6 +26,10 @@ impl Moon {
 
     fn z_pos(&self) -> i64 {
         self.pos[2]
+    }
+
+    fn velocity(&self) -> Vec<i64> {
+        self.vel.clone()
     }
 
     fn add_vec(v1: &[i64], v2: &[i64]) -> Vec<i64> {
@@ -86,7 +91,7 @@ impl Moon {
     }
 }
 
-fn step_time(n: u32, moons: &mut [Moon]) {
+fn step_time(n: usize, moons: &mut [Moon]) {
     let mut cpy = moons.to_vec();
     (0..n).for_each(|_| {
         for moon in moons.iter_mut() {
@@ -133,6 +138,21 @@ fn parse_input(s: &str) -> Vec<Moon> {
     return v;
 }
 
+fn get_all_axis(moons: &[Moon]) -> (Vec<i64>, Vec<i64>, Vec<i64>) {
+    let x_vec = moons.iter().map(|m| m.x_pos()).collect::<Vec<_>>();
+    let y_vec = moons.iter().map(|m| m.y_pos()).collect::<Vec<_>>();
+    let z_vec = moons.iter().map(|m| m.z_pos()).collect::<Vec<_>>();
+    (x_vec, y_vec, z_vec)
+}
+
+fn get_all_velocities(moons: &[Moon]) -> (Vec<i64>, Vec<i64>, Vec<i64>) {
+    let v: Vec<Vec<i64>> = moons.iter().map(|m| m.velocity()).collect();
+    let x_vec = v.iter().map(|m| m[0]).collect::<Vec<_>>();
+    let y_vec = v.iter().map(|m| m[1]).collect::<Vec<_>>();
+    let z_vec = v.iter().map(|m| m[2]).collect::<Vec<_>>();
+    (x_vec, y_vec, z_vec)
+}
+
 fn main() {
     println!("--- Day 12: The N-Body Problem ---\n");
 
@@ -156,16 +176,46 @@ fn main() {
     println!("\n--- Part 2: ---\n");
 
     let mut system = moons.clone();
-    let mut history = HashSet::new();
 
-    let mut steps = 0_u128;
-    while !history.contains(&system) {
-        history.insert(system.clone());
-        step_time(1, &mut system);
+    let mut steps_vec = vec![];
+    let mut steps: u64 = 0;
+
+    let mut history_x: HashSet<(Vec<i64>, Vec<i64>)> = HashSet::new();
+    let mut history_y: HashSet<(Vec<i64>, Vec<i64>)> = HashSet::new();
+    let mut history_z: HashSet<(Vec<i64>, Vec<i64>)> = HashSet::new();
+
+    let mut search_x = true;
+    let mut search_y = true;
+    let mut search_z = true;
+
+    while steps_vec.len() < 3 {
+        let (x_pos, y_pos, z_pos) = get_all_axis(&system);
+        let (x_vel, y_vel, z_vel) = get_all_velocities(&system);
+        if search_x {
+            if !history_x.insert((x_pos, x_vel)) {
+                steps_vec.push(steps);
+                search_x = false;
+            }
+        }
+        if search_y {
+            if !history_y.insert((y_pos, y_vel)) {
+                steps_vec.push(steps);
+                search_y = false;
+            }
+        }
+        if search_z {
+            if !history_z.insert((z_pos, z_vel)) {
+                steps_vec.push(steps);
+                search_z = false;
+            }
+        }
         steps += 1;
+        step_time(1, &mut system);
     }
 
-    println!("History repeats after {} steps.", steps);
+    let res = steps_vec[0].lcm(&steps_vec[1]).lcm(&steps_vec[2]);
+
+    println!("History repeats after {} steps.", res);
 }
 
 #[test]
@@ -322,37 +372,94 @@ fn test_p2t1() {
         Moon::new(3, 5, -1),
     ];
     let mut system = moons.clone();
-    let mut history = HashSet::new();
 
-    let mut steps = 0_u128;
-    while !history.contains(&system) {
-        history.insert(system.clone());
-        step_time(1, &mut system);
+    let mut steps_vec = vec![];
+    let mut steps = 0;
+
+    let mut history_x: HashSet<(Vec<i64>, Vec<i64>)> = HashSet::new();
+    let mut history_y: HashSet<(Vec<i64>, Vec<i64>)> = HashSet::new();
+    let mut history_z: HashSet<(Vec<i64>, Vec<i64>)> = HashSet::new();
+
+    let mut search_x = true;
+    let mut search_y = true;
+    let mut search_z = true;
+
+    while steps_vec.len() < 3 {
+        let (x_pos, y_pos, z_pos) = get_all_axis(&system);
+        let (x_vel, y_vel, z_vel) = get_all_velocities(&system);
+        if search_x {
+            if !history_x.insert((x_pos, x_vel)) {
+                steps_vec.push(steps);
+                search_x = false;
+            }
+        }
+        if search_y {
+            if !history_y.insert((y_pos, y_vel)) {
+                steps_vec.push(steps);
+                search_y = false;
+            }
+        }
+        if search_z {
+            if !history_z.insert((z_pos, z_vel)) {
+                steps_vec.push(steps);
+                search_z = false;
+            }
+        }
         steps += 1;
+        step_time(1, &mut system);
     }
 
-    assert_eq!(steps, 2772);
+    println!("Steps: {:?}", steps_vec);
+    let res = steps_vec[0].lcm(&steps_vec[1]).lcm(&steps_vec[2]);
+
+    assert_eq!(res, 2772);
 }
 
 #[test]
 fn test_p2t2() {
     let moons =
         parse_input("<x=-8, y=-10, z=0>\n<x=5, y=5, z=10>\n<x=2, y=-7, z=3>\n<x=9, y=-8, z=-3>");
-    let mut system = moons.clone();
-    let mut history = HashSet::new();
 
-    let mut steps = 0_u128;
-    while !history.contains(&system) {
-        history.insert(system.clone());
-        step_time(1, &mut system);
+    let mut system = moons.clone();
+
+    let mut steps_vec = vec![];
+    let mut steps: u64 = 0;
+
+    let mut history_x: HashSet<(Vec<i64>, Vec<i64>)> = HashSet::new();
+    let mut history_y: HashSet<(Vec<i64>, Vec<i64>)> = HashSet::new();
+    let mut history_z: HashSet<(Vec<i64>, Vec<i64>)> = HashSet::new();
+
+    let mut search_x = true;
+    let mut search_y = true;
+    let mut search_z = true;
+
+    while steps_vec.len() < 3 {
+        let (x_pos, y_pos, z_pos) = get_all_axis(&system);
+        let (x_vel, y_vel, z_vel) = get_all_velocities(&system);
+        if search_x {
+            if !history_x.insert((x_pos, x_vel)) {
+                steps_vec.push(steps);
+                search_x = false;
+            }
+        }
+        if search_y {
+            if !history_y.insert((y_pos, y_vel)) {
+                steps_vec.push(steps);
+                search_y = false;
+            }
+        }
+        if search_z {
+            if !history_z.insert((z_pos, z_vel)) {
+                steps_vec.push(steps);
+                search_z = false;
+            }
+        }
         steps += 1;
-        if steps % 1000 == 0 {
-            print!(".");
-        }
-        if steps > 4686774924 {
-            assert!(false);
-        }
+        step_time(1, &mut system);
     }
 
-    assert_eq!(steps, 4686774924);
+    println!("Steps: {:?}", steps_vec);
+    let res = steps_vec[0].lcm(&steps_vec[1]).lcm(&steps_vec[2]);
+
+    assert_eq!(res, 4686774924);
 }
